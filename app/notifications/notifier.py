@@ -1,12 +1,13 @@
-import subprocess
 import logging
+import subprocess
+
 
 class DesktopNotifier:
     """
     Handles native Linux desktop notifications using notify-send.
     This works across GNOME, KDE, XFCE, and other standard desktop environments.
     """
-    
+
     @staticmethod
     def send(title: str, message: str, icon_name: str = "appointment-new"):
         """
@@ -21,14 +22,17 @@ class DesktopNotifier:
             # -u sets the urgency (normal)
             subprocess.run(
                 [
-                    "notify-send", 
-                    "-a", "Prayer Companion", 
-                    "-i", icon_name, 
-                    "-u", "normal", 
-                    title, 
-                    message
+                    "notify-send",
+                    "-a",
+                    "Prayer Companion",
+                    "-i",
+                    icon_name,
+                    "-u",
+                    "normal",
+                    title,
+                    message,
                 ],
-                check=False
+                check=False,
             )
         except FileNotFoundError:
             logging.error("notify-send command not found. Please install libnotify-bin.")

@@ -4,13 +4,13 @@ Streak semantics: get_current_streak and get_longest_streak.
 Exercises the same logic we manually verified during the foundation pass,
 but pinned as regression tests against an isolated SQLite DB.
 """
+
 from __future__ import annotations
 
 from datetime import date, timedelta
 
 from app.core.models import PrayerRecord
 from app.database.repository import PrayerLogRepository
-
 
 ALL_FIVE = ("Fajr", "Dhuhr", "Asr", "Maghrib", "Isha")
 
@@ -70,6 +70,25 @@ def test_both_today_and_yesterday_imperfect_returns_zero(isolated_db):
     _fill_perfect(repo, yesterday)
     _uncomplete_one(repo, yesterday, "Fajr")
     assert repo.get_current_streak() == 0
+
+
+def test_anchor_falls_back_to_yesterday_when_today_imperfect(isolated_db):
+    """
+    If today is imperfect but yesterday is a perfect day, the current streak
+    should still count back from yesterday (the user hasn't broken the streak
+    yet today — they have until midnight).
+    """
+    repo = PrayerLogRepository()
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+    day_before = today - timedelta(days=2)
+    _fill_perfect(repo, yesterday)
+    _fill_perfect(repo, day_before)
+    # Today is missing one prayer → not perfect
+    for name in ALL_FIVE:
+        repo.save_record(PrayerRecord(date=today.isoformat(), prayer_name=name, is_completed=True))
+    _uncomplete_one(repo, today, "Isha")
+    assert repo.get_current_streak() == 2
 
 
 def test_gap_then_three_perfect_days(isolated_db):

@@ -5,6 +5,7 @@ Wraps apscheduler.schedulers.background.BackgroundScheduler. Jobs fire callbacks
 in a worker thread; callbacks may use Qt signal emission (queued across threads
 is automatic) to update the UI.
 """
+
 from __future__ import annotations
 
 import logging
@@ -79,8 +80,6 @@ class PrayerScheduler:
         current today/tomorrow. Jobs whose fire time is already in the past
         are skipped.
         """
-        from datetime import datetime, timedelta
-
         self._cancel_all()
 
         timeline = _make_timeline(today, tomorrow)

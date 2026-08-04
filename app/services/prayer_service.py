@@ -8,12 +8,20 @@ try:
     from adhanpy.calculation.CalculationParameters import CalculationParameters
     from adhanpy.calculation.Madhab import Madhab
     from adhanpy.PrayerTimes import PrayerTimes
+
     adlib = True
 except ImportError:
     adlib = False
 
+
 class PrayerCalculationService:
-    def __init__(self, latitude: float, longitude: float, method_name: str = "KARACHI", is_hanafi_asr: bool = True):
+    def __init__(
+        self,
+        latitude: float,
+        longitude: float,
+        method_name: str = "KARACHI",
+        is_hanafi_asr: bool = True,
+    ):
         from datetime import datetime  # local import to keep module surface small
 
         self.latitude = latitude
@@ -32,7 +40,7 @@ class PrayerCalculationService:
     def get_params(self):
         if not adlib:
             raise ImportError("adhanpy is not installed.")
-            
+
         if self.method_name == "MUSLIM_WORLD_LEAGUE":
             params = CalculationParameters(fajr_angle=18.0, isha_angle=17.0)
         elif self.method_name == "ISNA":
@@ -43,7 +51,7 @@ class PrayerCalculationService:
             params = CalculationParameters(fajr_angle=19.5, isha_angle=17.5)
         else:
             params = CalculationParameters(fajr_angle=18.0, isha_angle=18.0)
-            
+
         params.madhab = Madhab.HANAFI if self.is_hanafi_asr else Madhab.SHAFI
         return params
 
@@ -58,7 +66,7 @@ class PrayerCalculationService:
             time_zone=self.tz,
         )
 
-        # Calculate Tahajjud (Last 1/3 of the night starting from today's Maghrib to tomorrow's Fajr)
+        # Calculate Tahajjud (Last 1/3 of the night, today's Maghrib to tomorrow's Fajr)
         tomorrow_date = target_date + timedelta(days=1)
         pt_tomorrow = PrayerTimes(
             (self.latitude, self.longitude),

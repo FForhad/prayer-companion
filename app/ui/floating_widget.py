@@ -1,6 +1,5 @@
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QApplication
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt, Signal
+from PySide6.QtWidgets import QApplication, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 
 class FloatingWidget(QWidget):
@@ -9,9 +8,9 @@ class FloatingWidget(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowFlags(
-            Qt.WindowType.FramelessWindowHint |
-            Qt.WindowType.WindowStaysOnTopHint |
-            Qt.WindowType.Tool
+            Qt.WindowType.FramelessWindowHint
+            | Qt.WindowType.WindowStaysOnTopHint
+            | Qt.WindowType.Tool
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.resize(280, 80)
@@ -74,7 +73,7 @@ class FloatingWidget(QWidget):
         # Top row: Current Prayer + Menu & Close buttons
         top_row = QHBoxLayout()
         top_row.setContentsMargins(0, 0, 0, 0)
-        
+
         self.lbl_current = QLabel("Fajr")
         self.lbl_current.setStyleSheet("font-size: 13px; font-weight: 700; color: #38bdf8;")
         top_row.addWidget(self.lbl_current)

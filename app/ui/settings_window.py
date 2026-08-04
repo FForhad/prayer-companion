@@ -1,8 +1,17 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QFormLayout, QComboBox, 
-    QCheckBox, QPushButton, QMessageBox, QLabel, QLineEdit
+    QCheckBox,
+    QComboBox,
+    QFormLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
+
 from app.database.repository import PrayerLogRepository
+
 
 class SettingsWindow(QWidget):
     # Complete collection of all 64 districts of Bangladesh + international hubs
@@ -15,7 +24,6 @@ class SettingsWindow(QWidget):
         "New York, USA": (40.7128, -74.0060),
         "Dubai, UAE": (25.2048, 55.2708),
         "Kuala Lumpur, Malaysia": (3.1390, 101.6869),
-        
         # All 64 Districts of Bangladesh (Alphabetical)
         "Bagerhat, Bangladesh": (22.6602, 89.7895),
         "Bandarban, Bangladesh": (21.8311, 92.3686),
@@ -86,7 +94,7 @@ class SettingsWindow(QWidget):
         super().__init__()
         self.repository = repository
         self.on_save_callback = on_save_callback
-        
+
         self.setStyleSheet("""
             QWidget {
                 background-color: transparent;
@@ -113,9 +121,11 @@ class SettingsWindow(QWidget):
 
         self.layout = QVBoxLayout(self)
         self.layout.setContentsMargins(10, 10, 10, 10)
-        
+
         header = QLabel("Preferences & Location")
-        header.setStyleSheet("font-size: 16px; font-weight: 700; margin-bottom: 5px; color: #ffffff;")
+        header.setStyleSheet(
+            "font-size: 16px; font-weight: 700; margin-bottom: 5px; color: #ffffff;"
+        )
         self.layout.addWidget(header)
 
         # Form Layout for Inputs
@@ -185,16 +195,18 @@ class SettingsWindow(QWidget):
         try:
             lat = float(self.inp_lat.text())
             lon = float(self.inp_lon.text())
-            
+
             self.repository.save_setting("latitude", str(lat))
             self.repository.save_setting("longitude", str(lon))
             self.repository.save_setting("calc_method", self.combo_method.currentText())
             self.repository.save_setting("is_hanafi", str(self.chk_hanafi.isChecked()))
-            
-            QMessageBox.information(self, "Success", f"Settings updated successfully!\nCoords: {lat}, {lon}")
-            
+
+            QMessageBox.information(
+                self, "Success", f"Settings updated successfully!\nCoords: {lat}, {lon}"
+            )
+
             if self.on_save_callback:
                 self.on_save_callback()
-                
+
         except ValueError:
             QMessageBox.critical(self, "Error", "Latitude and Longitude must be valid numbers.")

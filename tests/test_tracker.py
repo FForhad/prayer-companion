@@ -4,13 +4,14 @@ Golden-vector tests for PrayerTracker.get_status.
 The tracker is a pure function (no I/O, no clock reads, no Qt), so we
 construct DailyPrayerTimes with concrete datetimes and pin the output.
 """
+
 from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
-from zoneinfo import ZoneInfo
 
 from app.core.models import DailyPrayerTimes
 from app.core.tracker import PrayerTracker

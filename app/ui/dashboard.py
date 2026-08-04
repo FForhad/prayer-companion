@@ -1,26 +1,35 @@
 from datetime import datetime
+
+import pyqtgraph as pg
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QFrame, QProgressBar, QTabWidget
+    QCheckBox,
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QProgressBar,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
 )
-import pyqtgraph as pg
 
-from app.ui.settings_window import SettingsWindow
 from app.core.models import DailyPrayerTimes, PrayerRecord
 from app.database.repository import PrayerLogRepository
+from app.ui.settings_window import SettingsWindow
 from app.widgets.heatmap import MonthlyHeatmapWidget
+
 
 class DashboardWindow(QWidget):
     def __init__(self, repository: PrayerLogRepository, on_settings_saved=None):
         super().__init__()
         self.repository = repository
         self.on_settings_saved = on_settings_saved
-        
+
         self.setWindowTitle("Prayer Companion")
         # Resizable: minimum keeps the layout sensible on tiny windows.
         self.setMinimumSize(420, 600)
         self.resize(420, 640)
-        
+
         self.setStyleSheet("""
             QWidget {
                 background-color: #0b0f19;
@@ -54,14 +63,14 @@ class DashboardWindow(QWidget):
                 border: 1px solid #1e293b;
                 border-radius: 10px;
             }
-            QCheckBox { 
-                font-size: 14px; 
+            QCheckBox {
+                font-size: 14px;
                 font-weight: 600;
-                spacing: 10px; 
+                spacing: 10px;
                 color: #f8fafc;
             }
             QCheckBox::indicator {
-                width: 18px; height: 18px; border-radius: 5px; 
+                width: 18px; height: 18px; border-radius: 5px;
                 border: 2px solid #475569; background-color: #0b0f19;
             }
             QCheckBox::indicator:hover { border-color: #38bdf8; }
@@ -77,7 +86,7 @@ class DashboardWindow(QWidget):
         main_layout.setContentsMargins(10, 10, 10, 10)
 
         self.tabs = QTabWidget()
-        
+
         self.tab_today = QWidget()
         self.tab_analytics = QWidget()
         self.tab_settings = QWidget()
@@ -104,12 +113,12 @@ class DashboardWindow(QWidget):
         top_bar = QHBoxLayout()
         header_vbox = QVBoxLayout()
         header_vbox.setSpacing(1)
-        
+
         self.lbl_header = QLabel("Daily Prayers")
         self.lbl_header.setStyleSheet("font-size: 18px; font-weight: 700; color: #ffffff;")
         self.lbl_date = QLabel(datetime.now().strftime("%a, %d %b"))
         self.lbl_date.setStyleSheet("font-size: 12px; color: #64748b; font-weight: 500;")
-        
+
         header_vbox.addWidget(self.lbl_header)
         header_vbox.addWidget(self.lbl_date)
         top_bar.addLayout(header_vbox)
@@ -117,7 +126,7 @@ class DashboardWindow(QWidget):
 
         self.lbl_streak = QLabel("🔥 0d Streak")
         self.lbl_streak.setStyleSheet("""
-            background-color: #131b2e; color: #f59e0b; font-size: 11px; 
+            background-color: #131b2e; color: #f59e0b; font-size: 11px;
             font-weight: 700; padding: 4px 8px; border-radius: 6px; border: 1px solid #1e293b;
         """)
         top_bar.addWidget(self.lbl_streak)
@@ -207,15 +216,15 @@ class DashboardWindow(QWidget):
         lbl_title.setStyleSheet("font-size: 16px; font-weight: 700; color: #ffffff;")
         layout.addWidget(lbl_title)
 
-        pg.setConfigOption('background', '#0b0f19')
-        pg.setConfigOption('foreground', '#f1f5f9')
+        pg.setConfigOption("background", "#0b0f19")
+        pg.setConfigOption("foreground", "#f1f5f9")
 
         self.plot_widget = pg.PlotWidget()
         self.plot_widget.setYRange(0, 5)
-        self.plot_widget.getAxis('left').setTicks([[(i, str(i)) for i in range(6)]])
+        self.plot_widget.getAxis("left").setTicks([[(i, str(i)) for i in range(6)]])
         self.plot_widget.showGrid(x=False, y=True, alpha=0.2)
         self.plot_widget.setMouseEnabled(x=False, y=False)
-        
+
         layout.addWidget(self.plot_widget)
         self.draw_chart()
 
@@ -231,15 +240,12 @@ class DashboardWindow(QWidget):
         y_values = list(data.values())
         date_labels = list(data.keys())
         short_dates = [d[5:] for d in date_labels]
-        
-        x_axis = self.plot_widget.getAxis('bottom')
+
+        x_axis = self.plot_widget.getAxis("bottom")
         x_axis.setTicks([list(zip(x_values, short_dates))])
 
         bar_chart = pg.BarGraphItem(
-            x=x_values, 
-            height=y_values, 
-            width=0.6, 
-            brush=pg.mkBrush(color=(16, 185, 129))
+            x=x_values, height=y_values, width=0.6, brush=pg.mkBrush(color=(16, 185, 129))
         )
         self.plot_widget.addItem(bar_chart)
 
@@ -256,9 +262,10 @@ class DashboardWindow(QWidget):
         self.activateWindow()
 
     def populate_prayers(self, today_times: DailyPrayerTimes):
-        for i in reversed(range(self.prayer_list_layout.count())): 
+        for i in reversed(range(self.prayer_list_layout.count())):
             w = self.prayer_list_layout.itemAt(i).widget()
-            if w: w.setParent(None)
+            if w:
+                w.setParent(None)
 
         prayers = [
             ("Fajr", today_times.fajr),
@@ -280,7 +287,7 @@ class DashboardWindow(QWidget):
             chk_box = QCheckBox(name)
             chk_box.setChecked(is_completed)
             chk_box.setCursor(Qt.CursorShape.PointingHandCursor)
-            
+
             lbl_time = QLabel(time_obj.strftime("%I:%M %p"))
             lbl_time.setStyleSheet("font-size: 12px; color: #64748b; font-weight: 500;")
             lbl_time.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -304,7 +311,7 @@ class DashboardWindow(QWidget):
         today = datetime.now()
         month_data = self.repository.get_monthly_data(today.year, today.month)
         self.heatmap.update_data(today.year, today.month, month_data)
-        
+
         self.plot_widget.clear()
         self.draw_chart()
 
@@ -314,7 +321,7 @@ class DashboardWindow(QWidget):
             date=today_str,
             prayer_name=prayer_name,
             is_completed=is_completed,
-            completed_at=datetime.now() if is_completed else None
+            completed_at=datetime.now() if is_completed else None,
         )
         self.repository.save_record(record)
         self.update_progress_ui()

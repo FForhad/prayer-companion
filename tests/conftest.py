@@ -4,15 +4,13 @@ Shared pytest fixtures.
 The repository test fixtures point the DB at a private temp directory so we
 never touch the user's real SQLite database.
 """
+
 from __future__ import annotations
 
-import os
-import tempfile
 from datetime import datetime, timedelta
-from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
-from zoneinfo import ZoneInfo
 
 from app.core.models import DailyPrayerTimes
 from app.database.connection import initialize_database

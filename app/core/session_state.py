@@ -5,6 +5,7 @@ Owns the cached today/tomorrow prayer times, detects day rollover, and emits
 the Qt signals the UI subscribes to. A 1Hz QTimer is owned here purely for
 repaint cadence; notification logic lives in PrayerScheduler, not here.
 """
+
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta

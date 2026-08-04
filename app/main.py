@@ -7,6 +7,7 @@ Wiring only — all business logic lives in:
   - PrayerTracker: pure-function status calculations.
   - FloatingWidget / DashboardWindow: thin UI shells that subscribe to the controller.
 """
+
 import sys
 
 from PySide6.QtWidgets import QApplication

@@ -11,6 +11,7 @@ class DailyPrayerTimes:
     `tahajjud_start` is the start of the last third of the night (between today's
     Maghrib and tomorrow's Fajr), included so callers don't have to recompute it.
     """
+
     fajr: datetime
     sunrise: datetime
     dhuhr: datetime
@@ -25,8 +26,9 @@ class PrayerRecord:
     """
     Represents a single prayer log entry in the database.
     """
-    date: str              # Format: YYYY-MM-DD
-    prayer_name: str       # Fajr, Dhuhr, Asr, Maghrib, Isha
+
+    date: str  # Format: YYYY-MM-DD
+    prayer_name: str  # Fajr, Dhuhr, Asr, Maghrib, Isha
     is_completed: bool = False
     completed_at: Optional[datetime] = None
     is_jamaah: bool = False

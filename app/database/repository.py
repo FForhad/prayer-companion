@@ -1,7 +1,9 @@
 from datetime import date, datetime, timedelta
-from typing import List, Optional
+from typing import Optional
+
 from app.core.models import PrayerRecord
 from app.database.connection import get_db_connection
+
 
 class PrayerLogRepository:
     """
@@ -14,19 +16,21 @@ class PrayerLogRepository:
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT * FROM prayer_logs WHERE date = ? AND prayer_name = ?",
-                (target_date, prayer_name)
+                (target_date, prayer_name),
             )
             row = cursor.fetchone()
-            
+
             if row:
                 return PrayerRecord(
                     date=row["date"],
                     prayer_name=row["prayer_name"],
                     is_completed=bool(row["is_completed"]),
-                    completed_at=datetime.fromisoformat(row["completed_at"]) if row["completed_at"] else None,
+                    completed_at=(
+                        datetime.fromisoformat(row["completed_at"]) if row["completed_at"] else None
+                    ),
                     is_jamaah=bool(row["is_jamaah"]),
                     is_late=bool(row["is_late"]),
-                    notes=row["notes"]
+                    notes=row["notes"],
                 )
             return None
 
@@ -34,12 +38,15 @@ class PrayerLogRepository:
         """Insert a new record or update an existing one (Upsert)."""
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            
+
             completed_at_str = record.completed_at.isoformat() if record.completed_at else None
-            
+
             cursor.execute(
                 """
-                INSERT INTO prayer_logs (date, prayer_name, is_completed, completed_at, is_jamaah, is_late, notes)
+                INSERT INTO prayer_logs (
+                    date, prayer_name, is_completed, completed_at,
+                    is_jamaah, is_late, notes
+                )
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(date, prayer_name) DO UPDATE SET
                     is_completed=excluded.is_completed,
@@ -55,8 +62,8 @@ class PrayerLogRepository:
                     completed_at_str,
                     record.is_jamaah,
                     record.is_late,
-                    record.notes
-                )
+                    record.notes,
+                ),
             )
             conn.commit()
 
@@ -66,11 +73,11 @@ class PrayerLogRepository:
             cursor = conn.cursor()
             cursor.execute(
                 "SELECT COUNT(*) as count FROM prayer_logs WHERE date = ? AND is_completed = 1",
-                (target_date,)
+                (target_date,),
             )
             row = cursor.fetchone()
             return row["count"] if row else 0
-        
+
     def get_longest_streak(self) -> int:
         """
         Longest run of consecutive days on which all 5 prayers were completed
@@ -100,12 +107,12 @@ class PrayerLogRepository:
 
             max_streak = 1
             current_streak = 1
-            
+
             # Simple python loop to count consecutive days
             for i in range(1, len(rows)):
-                prev_date = datetime.strptime(rows[i-1]["date"], "%Y-%m-%d").date()
+                prev_date = datetime.strptime(rows[i - 1]["date"], "%Y-%m-%d").date()
                 curr_date = datetime.strptime(rows[i]["date"], "%Y-%m-%d").date()
-                
+
                 if (curr_date - prev_date).days == 1:
                     current_streak += 1
                     max_streak = max(max_streak, current_streak)
@@ -140,8 +147,7 @@ class PrayerLogRepository:
                 ORDER BY date DESC
             """)
             perfect_dates = {
-                datetime.strptime(row["date"], "%Y-%m-%d").date()
-                for row in cursor.fetchall()
+                datetime.strptime(row["date"], "%Y-%m-%d").date() for row in cursor.fetchall()
             }
 
         if not perfect_dates:
@@ -162,55 +168,63 @@ class PrayerLogRepository:
             cursor_date -= timedelta(days=1)
 
         return streak
-         
+
     def get_monthly_data(self, year: int, month: int) -> dict:
         """
         Returns a dictionary mapping 'YYYY-MM-DD' to the number of completed prayers (0-5)
         for a specific month. This is used for the heatmap.
         """
         month_str = f"{year:04d}-{month:02d}"
-        
+
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT date, COUNT(*) as completed_count
                 FROM prayer_logs
                 WHERE date LIKE ? AND is_completed = 1
                 GROUP BY date
-            """, (f"{month_str}-%",))
-            
+            """,
+                (f"{month_str}-%",),
+            )
+
             rows = cursor.fetchall()
             return {row["date"]: row["completed_count"] for row in rows}
-    
+
     def get_last_7_days_data(self) -> dict:
         """
         Returns a dictionary of the last 7 dates and their completion count.
         Example: {'2023-10-20': 5, '2023-10-21': 4, ...}
         """
         import datetime
-        
+
         today = datetime.date.today()
-        dates_to_fetch = [(today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(6, -1, -1)]
-        
+        dates_to_fetch = [
+            (today - datetime.timedelta(days=i)).strftime("%Y-%m-%d") for i in range(6, -1, -1)
+        ]
+
         # Initialize dictionary with 0s so days with no records still show up on the chart
         results = {date: 0 for date in dates_to_fetch}
-        
+
         with get_db_connection() as conn:
             cursor = conn.cursor()
             # Fetch data for these specific dates
             placeholders = ",".join("?" * len(dates_to_fetch))
-            cursor.execute(f"""
-                SELECT date, COUNT(*) as count 
-                FROM prayer_logs 
+            cursor.execute(
+                f"""
+                SELECT date, COUNT(*) as count
+                FROM prayer_logs
                 WHERE date IN ({placeholders}) AND is_completed = 1
                 GROUP BY date
-            """, dates_to_fetch)
-            
+            """,
+                dates_to_fetch,
+            )
+
             for row in cursor.fetchall():
                 results[row["date"]] = row["count"]
-                
+
         return results
-    
+
     def get_setting(self, key: str, default_value: str = None) -> str:
         """Fetches a setting from the database, or returns the default."""
         with get_db_connection() as conn:
@@ -223,8 +237,11 @@ class PrayerLogRepository:
         """Saves or updates a setting in the database."""
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute("""
+            cursor.execute(
+                """
                 INSERT INTO settings (key, value) VALUES (?, ?)
                 ON CONFLICT(key) DO UPDATE SET value=excluded.value
-            """, (key, str(value)))
+            """,
+                (key, str(value)),
+            )
             conn.commit()

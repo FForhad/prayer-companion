@@ -47,7 +47,7 @@ class PrayerTracker:
         
         hours, remainder = divmod(seconds_left, 3600)
         minutes, seconds = divmod(remainder, 60)
-        countdown_str = f"-{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
+        countdown_str = f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}"
 
         total_duration = (next_time - previous_time).total_seconds()
         elapsed_duration = (now - previous_time).total_seconds()

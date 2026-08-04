@@ -1,12 +1,15 @@
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Optional
 
 
-@dataclass
+@dataclass(frozen=True)
 class DailyPrayerTimes:
     """
     Core domain model representing prayer times for a single day.
-    Our application will use this instead of adhanpy's internal classes.
+
+    `tahajjud_start` is the start of the last third of the night (between today's
+    Maghrib and tomorrow's Fajr), included so callers don't have to recompute it.
     """
     fajr: datetime
     sunrise: datetime
@@ -14,8 +17,8 @@ class DailyPrayerTimes:
     asr: datetime
     maghrib: datetime
     isha: datetime
+    tahajjud_start: datetime
 
-from typing import Optional
 
 @dataclass
 class PrayerRecord:

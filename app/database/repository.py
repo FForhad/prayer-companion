@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import List, Optional
 from app.core.models import PrayerRecord
 from app.database.connection import get_db_connection
@@ -72,7 +72,10 @@ class PrayerLogRepository:
             return row["count"] if row else 0
         
     def get_longest_streak(self) -> int:
-        """Calculates the longest streak of consecutive days where all 5 prayers were completed."""
+        """
+        Longest run of consecutive days on which all 5 prayers were completed
+        (a "perfect day"). Days with 1-4 prayers do not count toward this streak.
+        """
         with get_db_connection() as conn:
             cursor = conn.cursor()
             # This query finds dates where the count of completed prayers is 5
@@ -112,10 +115,53 @@ class PrayerLogRepository:
             return max_streak
 
     def get_current_streak(self) -> int:
-         """Calculates the current active streak ending on today or yesterday."""
-         # For brevity in this step, we'll return a placeholder.
-         # In a full implementation, you'd iterate backwards from today.
-         return 0 
+        """
+        Current active streak of consecutive "perfect days" (all 5 prayers
+        completed), anchored on today or yesterday.
+
+        - If today is a perfect day, the streak counts back from today.
+        - Else if yesterday is a perfect day, the streak counts back from yesterday
+          (the user hasn't broken the streak yet today).
+        - Otherwise returns 0.
+
+        Uses the same strict 5/5 definition as get_longest_streak.
+        """
+        today = date.today()
+        yesterday = today - timedelta(days=1)
+
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT date
+                FROM prayer_logs
+                WHERE is_completed = 1
+                GROUP BY date
+                HAVING COUNT(*) = 5
+                ORDER BY date DESC
+            """)
+            perfect_dates = {
+                datetime.strptime(row["date"], "%Y-%m-%d").date()
+                for row in cursor.fetchall()
+            }
+
+        if not perfect_dates:
+            return 0
+
+        # Anchor: most recent perfect date must be today or yesterday.
+        if today in perfect_dates:
+            anchor = today
+        elif yesterday in perfect_dates:
+            anchor = yesterday
+        else:
+            return 0
+
+        streak = 0
+        cursor_date = anchor
+        while cursor_date in perfect_dates:
+            streak += 1
+            cursor_date -= timedelta(days=1)
+
+        return streak
          
     def get_monthly_data(self, year: int, month: int) -> dict:
         """

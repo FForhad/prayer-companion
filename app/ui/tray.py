@@ -1,7 +1,12 @@
 import sys
+from pathlib import Path
 from PySide6.QtWidgets import QSystemTrayIcon, QMenu
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtWidgets import QApplication
+
+# Bundled icon — works on any desktop environment regardless of theme.
+ICON_PATH = Path(__file__).resolve().parent.parent / "assets" / "time.png"
+
 
 class AppTrayIcon(QSystemTrayIcon):
     """
@@ -9,8 +14,8 @@ class AppTrayIcon(QSystemTrayIcon):
     Allows the user to hide/show the app and quit completely.
     """
     def __init__(self, dashboard, floating_widget):
-        # We use a default Qt fallback icon until we add custom assets
-        super().__init__(QIcon.fromTheme("appointment-new"))
+        icon = QIcon(str(ICON_PATH)) if ICON_PATH.exists() else QIcon.fromTheme("appointment-new")
+        super().__init__(icon)
         
         self.dashboard = dashboard
         self.floating_widget = floating_widget

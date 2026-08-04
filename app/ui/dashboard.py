@@ -17,7 +17,9 @@ class DashboardWindow(QWidget):
         self.on_settings_saved = on_settings_saved
         
         self.setWindowTitle("Prayer Companion")
-        self.setFixedSize(400, 640)  # Slightly taller to accommodate new info card
+        # Resizable: minimum keeps the layout sensible on tiny windows.
+        self.setMinimumSize(420, 600)
+        self.resize(420, 640)
         
         self.setStyleSheet("""
             QWidget {
@@ -247,6 +249,12 @@ class DashboardWindow(QWidget):
         self.daily_progress.setValue(count)
         self.lbl_progress_text.setText(f"Today: {count}/5 Completed")
 
+    def show_then_raise(self) -> None:
+        """Show the dashboard and bring it to the front. Safe to call repeatedly."""
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
     def populate_prayers(self, today_times: DailyPrayerTimes):
         for i in reversed(range(self.prayer_list_layout.count())): 
             w = self.prayer_list_layout.itemAt(i).widget()
@@ -290,8 +298,8 @@ class DashboardWindow(QWidget):
         self.lbl_tahajjud_val.setText(today_times.tahajjud_start.strftime("%I:%M %p"))
 
     def update_statistics(self):
-        longest_streak = self.repository.get_longest_streak()
-        self.lbl_streak.setText(f"🔥 {longest_streak}d Streak")
+        current_streak = self.repository.get_current_streak()
+        self.lbl_streak.setText(f"🔥 {current_streak}d Streak")
 
         today = datetime.now()
         month_data = self.repository.get_monthly_data(today.year, today.month)

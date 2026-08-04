@@ -1,5 +1,7 @@
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QApplication
+from PySide6.QtCore import QSettings
+
 
 class FloatingWidget(QWidget):
     menu_clicked = Signal()
@@ -13,6 +15,14 @@ class FloatingWidget(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.resize(280, 80)
+
+        # Persist position across launches. QSettings uses the platform's
+        # standard config location (~/.config/PrayerCompanion/PrayerTimer.conf
+        # on Linux), separate from the prayer logs SQLite DB.
+        self._settings = QSettings("PrayerCompanion", "PrayerTimer")
+        saved_pos = self._settings.value("floating_widget/pos")
+        if saved_pos is not None:
+            self.move(saved_pos)
 
         # Sleek modern dark theme with an emerald accent bar on the left
         self.setStyleSheet("""
@@ -117,4 +127,6 @@ class FloatingWidget(QWidget):
             self.old_pos = event.globalPosition().toPoint()
 
     def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton and self.old_pos is not None:
+            self._settings.setValue("floating_widget/pos", self.pos())
         self.old_pos = None

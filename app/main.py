@@ -1,16 +1,35 @@
-import sys
-from datetime import datetime, timedelta
-from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import QTimer
+"""
+Application entry point.
 
-from app.database.connection import initialize_database
-from app.ui.floating_widget import FloatingWidget
-from app.services.prayer_service import PrayerCalculationService
+Wiring only — all business logic lives in:
+  - PrayerSessionState (controller): cached prayer times, day rollover, repaint tick.
+  - PrayerScheduler: prayer-boundary + 10-min warning notifications (worker thread).
+  - PrayerTracker: pure-function status calculations.
+  - FloatingWidget / DashboardWindow: thin UI shells that subscribe to the controller.
+"""
+import sys
+
+from PySide6.QtWidgets import QApplication
+
+from app.core.session_state import PrayerSessionState
 from app.core.tracker import PrayerTracker
-from app.notifications.notifier import DesktopNotifier
+from app.database.connection import initialize_database
 from app.database.repository import PrayerLogRepository
+from app.notifications.notifier import DesktopNotifier
+from app.scheduler.prayer_scheduler import PrayerScheduler
+from app.services.prayer_service import PrayerCalculationService
 from app.ui.dashboard import DashboardWindow
+from app.ui.floating_widget import FloatingWidget
 from app.ui.tray import AppTrayIcon
+
+
+def _build_service(repository: PrayerLogRepository) -> PrayerCalculationService:
+    return PrayerCalculationService(
+        latitude=float(repository.get_setting("latitude", "24.7471")),
+        longitude=float(repository.get_setting("longitude", "90.4203")),
+        method_name=repository.get_setting("calc_method", "KARACHI"),
+        is_hanafi_asr=repository.get_setting("is_hanafi", "True") == "True",
+    )
 
 
 def main():
@@ -19,113 +38,83 @@ def main():
 
     repository = PrayerLogRepository()
 
-    # Initialize Floating Widget and Dashboard
+    # --- service + controller ---------------------------------------------
+    service = _build_service(repository)
+    session_state = PrayerSessionState(repository, service)
+    scheduler = PrayerScheduler()
+
+    # --- UI shells ---------------------------------------------------------
     widget = FloatingWidget()
-    widget.show()
+    dashboard = DashboardWindow(repository, on_settings_saved=lambda: reload())
 
-    prayer_service = None
-    last_known_date = None
-    last_known_prayer = None
-    notified_ending_for = None
-
-    def update_logic():
-        nonlocal last_known_date, last_known_prayer, notified_ending_for
-
-        if not prayer_service:
+    # 1Hz repaint: re-query the tracker and update the floating widget.
+    def repaint_widget() -> None:
+        if session_state.today_times is None or session_state.tomorrow_times is None:
             return
+        current, nxt, countdown, progress, _ = PrayerTracker.get_status(
+            session_state.today_times,
+            session_state.tomorrow_times,
+            session_state.now,
+        )
+        widget.update_display(current, nxt, countdown, progress)
 
-        now = datetime.now(prayer_service.tz)
-        today = now.date()
+    session_state.tick.connect(repaint_widget)
 
-        # Day rollover: invalidate the service cache when the local date changes.
-        # `prayer_service.get_prayer_times` only recomputes when the cache misses.
-        if last_known_date != today:
-            prayer_service.clear_cache()
-            last_known_date = today
-            # Reset latches so the first tick of the new day can fire notifications
-            # (e.g. yesterday's Isha is not the same prayer as today's Fajr).
-            notified_ending_for = None
-            last_known_prayer = None
+    # Day rollover: rebuild the dashboard's checklist + progress.
+    def on_day_rolled_over() -> None:
+        if session_state.today_times is not None:
+            dashboard.populate_prayers(session_state.today_times)
+        dashboard.update_progress_ui()
+        dashboard.update_statistics()
 
-        today_times = prayer_service.get_prayer_times(today)
-        tomorrow_times = prayer_service.get_prayer_times(today + timedelta(days=1))
+    session_state.day_rolled_over.connect(on_day_rolled_over)
 
-        current_p, next_p, countdown, progress, seconds_left = PrayerTracker.get_status(
-            today_times, tomorrow_times, now
+    # --- notification callbacks (run in scheduler worker thread) ----------
+    def on_boundary(current: str, nxt: str) -> None:
+        # DesktopNotifier.send shells out to `notify-send`; no Qt dependency.
+        DesktopNotifier.send(
+            title="Time for Prayer",
+            message=f"It is now time for {current} prayer.",
+            icon_name="appointment-new",
         )
 
-        if dashboard.prayer_list_layout.count() == 0:
-            dashboard.populate_prayers(today_times)
+    def on_warn(current: str, nxt: str) -> None:
+        if current == "Sunrise":
+            return
+        DesktopNotifier.send(
+            title="Wakto Ending Soon!",
+            message=f"Only 10 minutes left for {current}! Next is {nxt}.",
+            icon_name="dialog-warning",
+        )
 
-        widget.update_display(current_p, next_p, countdown, progress)
-
-        if last_known_prayer is None:
-            last_known_prayer = current_p
-        elif current_p != last_known_prayer:
-            DesktopNotifier.send(
-                title="Time for Prayer",
-                message=f"It is now time for {current_p} prayer.",
-                icon_name="appointment-new"
+    # --- settings reload --------------------------------------------------
+    def reload() -> None:
+        nonlocal service
+        service = _build_service(repository)
+        session_state.service = service  # setter recomputes and re-emits day_rolled_over if needed
+        if session_state.today_times is not None and session_state.tomorrow_times is not None:
+            scheduler.reschedule_all(
+                session_state.today_times,
+                session_state.tomorrow_times,
+                on_boundary,
+                on_warn,
             )
-            last_known_prayer = current_p
 
-        if seconds_left <= 600 and notified_ending_for != current_p:
-            if current_p != "Sunrise":
-                DesktopNotifier.send(
-                    title="Wakto Ending Soon!",
-                    message=f"Only 10 minutes left for {current_p}! Next is {next_p}.",
-                    icon_name="dialog-warning"
-                )
-            notified_ending_for = current_p
+    # --- wire widget menu button + tray -----------------------------------
+    widget.menu_clicked.connect(dashboard.show_then_raise)
 
-    def reload_settings():
-        nonlocal prayer_service
+    scheduler.start()
+    reload()
 
-        lat = float(repository.get_setting("latitude", "24.7471"))
-        lon = float(repository.get_setting("longitude", "90.4203"))
-        method = repository.get_setting("calc_method", "KARACHI")
-        is_hanafi = repository.get_setting("is_hanafi", "True") == "True"
-
-        prayer_service = PrayerCalculationService(
-            latitude=lat,
-            longitude=lon,
-            method_name=method,
-            is_hanafi_asr=is_hanafi
-        )
-
-        if 'dashboard' in locals():
-            for i in reversed(range(dashboard.prayer_list_layout.count())):
-                w = dashboard.prayer_list_layout.itemAt(i).widget()
-                if w: w.setParent(None)
-
-        update_logic()
-
-    dashboard = DashboardWindow(repository, on_settings_saved=reload_settings)
-    # NOTE: dashboard.show() is removed from startup! It stays hidden.
-
-    # Connect widget 3-dot menu button to open the dashboard window
-    def open_dashboard():
-        dashboard.show()
-        dashboard.raise_()
-        dashboard.activateWindow()
-
-    widget.menu_clicked.connect(open_dashboard)
-
-    reload_settings()
-
-    app.setQuitOnLastWindowClosed(False)
+    widget.show()
     tray_icon = AppTrayIcon(dashboard, widget)
     tray_icon.show()
 
-    timer = QTimer()
-    timer.timeout.connect(update_logic)
-    timer.start(1000)
+    # Cleanup on quit.
+    app.aboutToQuit.connect(scheduler.shutdown)
+    app.aboutToQuit.connect(session_state.shutdown)
+    app.setQuitOnLastWindowClosed(False)
 
-    update_logic()
-
-    # Qt's event loop handles SIGINT/SIGTERM by routing them to app.quit();
-    # the previous `signal.signal(signal.SIGINT, signal.SIG_DFL)` bypassed Qt
-    # and skipped aboutToQuit handlers, so it's been removed.
     sys.exit(app.exec())
 
 

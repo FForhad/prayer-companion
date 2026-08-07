@@ -69,13 +69,15 @@ class PrayerSessionState(QObject):
         if not self._suppress_signals:
             now = datetime.now(self._service.tz)
             today = now.date()
-            if self._today_date != today:
+            date_changed = self._today_date != today
+            # Refresh times first so subscribers that read today_times/tomorrow_times
+            # in their slot (e.g. dashboard.populate_prayers) get fresh values.
+            self._today_times = self._service.get_prayer_times(today)
+            self._tomorrow_times = self._service.get_prayer_times(today + timedelta(days=1))
+            if date_changed:
                 self._service.clear_cache()
                 self._today_date = today
                 self.day_rolled_over.emit()
-
-            self._today_times = self._service.get_prayer_times(today)
-            self._tomorrow_times = self._service.get_prayer_times(today + timedelta(days=1))
 
     # --- read-only views ----------------------------------------------------
     @property

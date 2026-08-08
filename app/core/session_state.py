@@ -23,7 +23,7 @@ class PrayerSessionState(QObject):
     current_prayer_changed = Signal(str, str)
     # (current, next) — fires ~10 min before a non-Sunrise prayer ends.
     wakto_ending_soon = Signal(str, str)
-    # Local date changed (midnight rollover).
+    # Day rollover: fires when Isha ends (at tomorrow's Fajr), not at midnight.
     day_rolled_over = Signal()
     # 1Hz repaint tick. Cheap; just tells subscribers to refresh the countdown label.
     tick = Signal()
@@ -40,6 +40,7 @@ class PrayerSessionState(QObject):
         self._today_date: Optional[date] = None
         self._today_times: Optional[DailyPrayerTimes] = None
         self._tomorrow_times: Optional[DailyPrayerTimes] = None
+        self._isha_end_time: Optional[datetime] = None  # Tomorrow's Fajr = Isha end
         # Suppress signals during initial setup.
         self._suppress_signals = False
 
@@ -60,23 +61,30 @@ class PrayerSessionState(QObject):
         self._service = service
         self._today_times = None
         self._tomorrow_times = None
+        self._isha_end_time = None
         # Force recompute on next tick; today_date stays so rollover is still detected.
         self.recompute()
 
     # --- public API ---------------------------------------------------------
     def recompute(self) -> None:
-        """Refresh today/tomorrow times. Emits day_rolled_over if date changed."""
+        """Refresh today/tomorrow times. Emits day_rolled_over if Isha end time passed."""
         if not self._suppress_signals:
             now = datetime.now(self._service.tz)
             today = now.date()
-            date_changed = self._today_date != today
             # Refresh times first so subscribers that read today_times/tomorrow_times
             # in their slot (e.g. dashboard.populate_prayers) get fresh values.
             self._today_times = self._service.get_prayer_times(today)
             self._tomorrow_times = self._service.get_prayer_times(today + timedelta(days=1))
-            if date_changed:
+            # Isha ends at tomorrow's Fajr
+            self._isha_end_time = self._tomorrow_times.fajr
+
+            # On first run (_today_date is None), always emit to populate dashboard.
+            # After that, only emit when Isha period ends (at tomorrow's Fajr).
+            first_run = self._today_date is None
+            self._today_date = today
+
+            if first_run or now >= self._isha_end_time:
                 self._service.clear_cache()
-                self._today_date = today
                 self.day_rolled_over.emit()
 
     # --- read-only views ----------------------------------------------------
@@ -97,16 +105,20 @@ class PrayerSessionState(QObject):
         """Current wall clock in the service's timezone (or system tz if unset)."""
         return datetime.now(self._service.tz)
 
+    @property
+    def isha_end_time(self) -> Optional[datetime]:
+        """Time when Isha prayer period ends (tomorrow's Fajr)."""
+        return self._isha_end_time
+
     # --- internals ----------------------------------------------------------
     def _on_tick(self) -> None:
-        """1Hz slot. Cheap: detects date drift and emits tick for repaint."""
+        """1Hz slot. Cheap: detects Isha end drift and emits tick for repaint."""
         if self._suppress_signals:
             return
         now = datetime.now(self._service.tz)
-        today = now.date()
-        if self._today_date != today:
-            # Date drifted under us (e.g. system suspend). Don't emit day_rolled_over
-            # directly; defer to recompute so callers can still receive the full update.
+        # Check if Isha end time has passed (day rollover at Isha end, not midnight)
+        if self._isha_end_time is not None and now >= self._isha_end_time:
+            # Isha period ended; roll over to next prayer day
             self.recompute()
         self.tick.emit()
 
